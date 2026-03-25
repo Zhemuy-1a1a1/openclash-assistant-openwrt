@@ -1,0 +1,4 @@
+#!/bin/sh
+[ -f /etc/config/openclash-assistant ] || exit 0
+uci -q commit openclash-assistant
+exit 0

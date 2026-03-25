@@ -1,0 +1,13 @@
+{
+  "admin/services/openclash-assistant": {
+    "title": "OpenClash 助手",
+    "order": 81,
+    "action": {
+      "type": "view",
+      "path": "openclash-assistant/overview"
+    },
+    "depends": {
+      "acl": [ "luci-app-openclash-assistant" ]
+    }
+  }
+}

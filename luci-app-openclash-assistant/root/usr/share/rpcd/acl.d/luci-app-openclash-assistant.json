@@ -1,0 +1,21 @@
+{
+  "luci-app-openclash-assistant": {
+    "description": "Grant LuCI access to OpenClash Assistant helper commands",
+    "read": {
+      "file": {
+        "/etc/config/openclash-assistant": [ "read" ],
+        "/etc/config/openclash": [ "read" ],
+        "/etc/openclash": [ "list", "read" ],
+        "/usr/libexec/openclash-assistant/diag.sh": [ "read", "exec" ]
+      },
+      "ubus": {
+        "uci": [ "get", "state" ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "uci": [ "set", "add", "commit" ]
+      }
+    }
+  }
+}
