@@ -2,6 +2,11 @@
 
 A LuCI helper plugin for iStoreOS / OpenWrt that turns recurring OpenClash soft-router pain points into a compact diagnostic and access-check panel.
 
+## 中文说明
+
+- 中文使用说明：[`docs/中文说明.md`](docs/中文说明.md)
+- GitHub Release 中文说明：[`docs/github-release-v0.1.0-zh.md`](docs/github-release-v0.1.0-zh.md)
+
 ## Why this exists
 
 Recent community reports repeatedly cluster around:
