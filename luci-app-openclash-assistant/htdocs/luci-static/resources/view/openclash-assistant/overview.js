@@ -554,7 +554,8 @@ return view.extend({
 					badge(status.running ? '运行中' : '未运行', status.running ? 'good' : 'bad'),
 					badge(status.installed ? '已安装' : '未安装', status.installed ? 'good' : 'bad'),
 					badge(status.dnsmasq_full ? 'dnsmasq-full 正常' : '缺少 dnsmasq-full', status.dnsmasq_full ? 'good' : 'warn'),
-					badge(status.stream_auto_select === '1' ? 'OpenClash 已开启自动切换' : 'OpenClash 未开启自动切换', status.stream_auto_select === '1' ? 'good' : 'warn')
+					badge(status.stream_auto_select === '1' ? 'OpenClash 已开启自动切换' : 'OpenClash 未开启自动切换', status.stream_auto_select === '1' ? 'good' : 'warn'),
+					badge('DNS 诊断：' + (status.dns_diag_level === 'good' ? '正常' : (status.dns_diag_level === 'bad' ? '异常' : '提示')), status.dns_diag_level || 'warn')
 				]),
 				E('table', { 'class': 'table cbi-section-table' }, [
 					E('tr', [ E('td', '服务已启用'), E('td', yesNo(status.enabled)) ]),
@@ -563,7 +564,10 @@ return view.extend({
 					E('tr', [ E('td', '支持 TUN 模式'), E('td', yesNo(status.tun)) ]),
 					E('tr', [ E('td', '已安装 nftables'), E('td', yesNo(status.nft)) ]),
 					E('tr', [ E('td', '支持 Firewall4'), E('td', yesNo(status.firewall4)) ]),
-					E('tr', [ E('td', '支持 ipset'), E('td', yesNo(status.ipset)) ])
+					E('tr', [ E('td', '支持 ipset'), E('td', yesNo(status.ipset)) ]),
+					E('tr', [ E('td', 'DNS 服务链路'), E('td', status.dns_chain || '-') ]),
+					E('tr', [ E('td', 'DNS 诊断摘要'), E('td', status.dns_diag_summary || '-') ]),
+					E('tr', [ E('td', 'DNS 建议动作'), E('td', status.dns_diag_action || '-') ])
 				])
 			]);
 
@@ -738,7 +742,8 @@ return view.extend({
 				E('p', [
 					badge(flushDns.dnsmasq_running ? 'dnsmasq 运行中' : 'dnsmasq 未运行', flushDns.dnsmasq_running ? 'good' : 'warn'),
 					flushDns.smartdns_available ? badge(flushDns.smartdns_running ? 'smartdns 运行中' : 'smartdns 未运行', flushDns.smartdns_running ? 'good' : 'warn') : badge('smartdns 未启用', 'warn'),
-					badge(flushDns.openclash_running ? 'OpenClash 运行中' : 'OpenClash 未运行', flushDns.openclash_running ? 'good' : 'warn')
+					badge(flushDns.openclash_running ? 'OpenClash 运行中' : 'OpenClash 未运行', flushDns.openclash_running ? 'good' : 'warn'),
+					badge('DNS 诊断：' + (flushDns.dns_diag_level === 'good' ? '正常' : (flushDns.dns_diag_level === 'bad' ? '异常' : '提示')), flushDns.dns_diag_level || 'warn')
 				]),
 				E('div', {
 					'style': 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px;'
@@ -756,6 +761,19 @@ return view.extend({
 						E('div', { 'style': 'font-size:15px;font-weight:600;color:#111827;margin-bottom:8px;' }, '刷新结果'),
 						E('div', { 'data-dns-field': 'last_message', 'style': 'font-size:13px;color:#0f172a;font-weight:600;line-height:1.6;' }, flushDns.last_message || '暂无'),
 						E('div', { 'style': 'font-size:11px;color:#6b7280;margin-top:10px;line-height:1.4;' }, flushDns.hint || '-')
+					]),
+					E('div', {
+						'style': 'border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);box-shadow:0 1px 2px rgba(15,23,42,0.04);'
+					}, [
+						E('div', { 'style': 'font-size:15px;font-weight:600;color:#111827;margin-bottom:8px;' }, 'DNS 链路'),
+						E('div', { 'data-dns-field': 'dns_chain', 'style': 'font-size:13px;color:#0f172a;font-weight:700;line-height:1.6;' }, flushDns.dns_chain || '-'),
+						E('div', { 'data-dns-field': 'dns_diag_summary', 'style': 'font-size:12px;color:#334155;margin-top:8px;line-height:1.6;' }, flushDns.dns_diag_summary || '-')
+					]),
+					E('div', {
+						'style': 'border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);box-shadow:0 1px 2px rgba(15,23,42,0.04);'
+					}, [
+						E('div', { 'style': 'font-size:15px;font-weight:600;color:#111827;margin-bottom:8px;' }, '建议动作'),
+						E('div', { 'data-dns-field': 'dns_diag_action', 'style': 'font-size:12px;color:#334155;line-height:1.7;' }, flushDns.dns_diag_action || '-')
 					])
 				]),
 				actionButton('立即 Flush DNS', function() {
@@ -769,6 +787,12 @@ return view.extend({
 								node.textContent = nextFlushDns.last_run_at || '暂无';
 							else if (field === 'last_message')
 								node.textContent = nextFlushDns.last_message || '暂无';
+							else if (field === 'dns_chain')
+								node.textContent = nextFlushDns.dns_chain || '-';
+							else if (field === 'dns_diag_summary')
+								node.textContent = nextFlushDns.dns_diag_summary || '-';
+							else if (field === 'dns_diag_action')
+								node.textContent = nextFlushDns.dns_diag_action || '-';
 						});
 					}).catch(function() {});
 				}),

@@ -99,6 +99,66 @@ service_running_named() {
   fi
 }
 
+dns_chain_label() {
+  local openclash_running="$1"
+  local dnsmasq_running="$2"
+  local smartdns_available="$3"
+  local smartdns_running="$4"
+
+  if [ "$dnsmasq_running" = true ] && [ "$smartdns_available" = true ] && [ "$smartdns_running" = true ] && [ "$openclash_running" = true ]; then
+    echo 'dnsmasq -> smartdns -> OpenClash'
+  elif [ "$dnsmasq_running" = true ] && [ "$smartdns_available" = true ] && [ "$smartdns_running" = true ]; then
+    echo 'dnsmasq -> smartdns'
+  elif [ "$dnsmasq_running" = true ] && [ "$openclash_running" = true ]; then
+    echo 'dnsmasq -> OpenClash'
+  elif [ "$dnsmasq_running" = true ]; then
+    echo 'dnsmasq (OpenClash 未接管)'
+  elif [ "$openclash_running" = true ]; then
+    echo 'OpenClash 运行中（dnsmasq 未就绪）'
+  else
+    echo '未检测到可用 DNS 服务链路'
+  fi
+}
+
+dns_diag_line() {
+  local openclash_running="$1"
+  local dnsmasq_running="$2"
+  local smartdns_available="$3"
+  local smartdns_running="$4"
+  local dnsmasq_full="$5"
+  local chain code level summary action
+
+  chain="$(dns_chain_label "$openclash_running" "$dnsmasq_running" "$smartdns_available" "$smartdns_running")"
+  code='chain_ok'
+  level='good'
+  summary='DNS 服务链路看起来正常。'
+  action='如仍有解析异常，可先执行 Flush DNS，再复测访问检查。'
+
+  if [ "$openclash_running" != true ]; then
+    code='openclash_stopped'
+    level='warn'
+    summary='OpenClash 未运行，当前 DNS 接管可能未生效。'
+    action='先启动 OpenClash，再执行 Flush DNS。'
+  elif [ "$dnsmasq_running" != true ]; then
+    code='dnsmasq_not_running'
+    level='bad'
+    summary='dnsmasq 未运行，DNS 请求链路不完整。'
+    action='先恢复 dnsmasq 服务，再检查 OpenClash 日志。'
+  elif [ "$dnsmasq_full" != true ]; then
+    code='dnsmasq_full_missing'
+    level='warn'
+    summary='未检测到 dnsmasq-full，部分 DNS 能力可能受限。'
+    action='安装 dnsmasq-full 后重启 OpenClash，并再次检测。'
+  elif [ "$smartdns_available" = true ] && [ "$smartdns_running" = true ]; then
+    code='smartdns_parallel'
+    level='warn'
+    summary='smartdns 与 OpenClash 同时运行，可能存在双重 DNS 接管。'
+    action='如出现解析异常，请确认 LuCI 中仅保留一条主 DNS 接管链路。'
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\n' "$chain" "$code" "$level" "$summary" "$action"
+}
+
 flush_dns_state_value() {
   local field="$1"
   [ -r "$FLUSH_DNS_STATE_FILE" ] || return 0
@@ -839,7 +899,7 @@ recommended_template() {
 }
 
 status_json() {
-  local installed enabled running config_count openclash_dir dnsmasq_full ipset_ok nft_ok tun_ok firewall4_ok openclash_cfg role mode stream_auto_select stream_auto_select_logic stream_auto_select_interval
+  local installed enabled running config_count openclash_dir dnsmasq_full ipset_ok nft_ok tun_ok firewall4_ok openclash_cfg role mode stream_auto_select stream_auto_select_logic stream_auto_select_interval dnsmasq_running smartdns_available smartdns_running dns_diag_line_value dns_chain dns_diag_code dns_diag_level dns_diag_summary dns_diag_action
 
   if [ -x /etc/init.d/openclash ] || [ -f /etc/config/openclash ]; then
     installed=true
@@ -865,6 +925,15 @@ status_json() {
   stream_auto_select="$(uci -q get openclash.config.stream_auto_select 2>/dev/null || echo 0)"
   stream_auto_select_logic="$(uci -q get openclash.config.stream_auto_select_logic 2>/dev/null || echo urltest)"
   stream_auto_select_interval="$(uci -q get openclash.config.stream_auto_select_interval 2>/dev/null || echo 30)"
+  dnsmasq_running="$(service_running_named dnsmasq)"
+  [ -x /etc/init.d/smartdns ] && smartdns_available=true || smartdns_available=false
+  smartdns_running="$(service_running_named smartdns)"
+  dns_diag_line_value="$(dns_diag_line "$running" "$dnsmasq_running" "$smartdns_available" "$smartdns_running" "$dnsmasq_full")"
+  dns_chain="$(printf '%s' "$dns_diag_line_value" | cut -f1)"
+  dns_diag_code="$(printf '%s' "$dns_diag_line_value" | cut -f2)"
+  dns_diag_level="$(printf '%s' "$dns_diag_line_value" | cut -f3)"
+  dns_diag_summary="$(printf '%s' "$dns_diag_line_value" | cut -f4)"
+  dns_diag_action="$(printf '%s' "$dns_diag_line_value" | cut -f5)"
 
   printf '{\n'
   printf '  "installed": %s,\n' "$installed"
@@ -882,7 +951,15 @@ status_json() {
   printf '  "preferred_mode": "%s",\n' "$(json_string "$mode")"
   printf '  "stream_auto_select": "%s",\n' "$(json_string "$stream_auto_select")"
   printf '  "stream_auto_select_logic": "%s",\n' "$(json_string "$stream_auto_select_logic")"
-  printf '  "stream_auto_select_interval": "%s"\n' "$(json_string "$stream_auto_select_interval")"
+  printf '  "stream_auto_select_interval": "%s",\n' "$(json_string "$stream_auto_select_interval")"
+  printf '  "dnsmasq_running": %s,\n' "$dnsmasq_running"
+  printf '  "smartdns_available": %s,\n' "$smartdns_available"
+  printf '  "smartdns_running": %s,\n' "$smartdns_running"
+  printf '  "dns_chain": "%s",\n' "$(json_string "$dns_chain")"
+  printf '  "dns_diag_code": "%s",\n' "$(json_string "$dns_diag_code")"
+  printf '  "dns_diag_level": "%s",\n' "$(json_string "$dns_diag_level")"
+  printf '  "dns_diag_summary": "%s",\n' "$(json_string "$dns_diag_summary")"
+  printf '  "dns_diag_action": "%s"\n' "$(json_string "$dns_diag_action")"
   printf '}\n'
 }
 
@@ -1534,7 +1611,7 @@ sync_subconvert_from_openclash() {
 }
 
 flush_dns_json() {
-  local dnsmasq_available dnsmasq_running smartdns_available smartdns_running openclash_running last_run_at last_status last_message
+  local dnsmasq_available dnsmasq_running smartdns_available smartdns_running openclash_running last_run_at last_status last_message dnsmasq_full dns_diag_line_value dns_chain dns_diag_code dns_diag_level dns_diag_summary dns_diag_action
 
   [ -x /etc/init.d/dnsmasq ] && dnsmasq_available=true || dnsmasq_available=false
   dnsmasq_running="$(service_running_named dnsmasq)"
@@ -1544,6 +1621,13 @@ flush_dns_json() {
   last_run_at="$(flush_dns_state_value last_run_at)"
   last_status="$(flush_dns_state_value status)"
   last_message="$(flush_dns_state_value message)"
+  package_installed dnsmasq-full && dnsmasq_full=true || dnsmasq_full=false
+  dns_diag_line_value="$(dns_diag_line "$openclash_running" "$dnsmasq_running" "$smartdns_available" "$smartdns_running" "$dnsmasq_full")"
+  dns_chain="$(printf '%s' "$dns_diag_line_value" | cut -f1)"
+  dns_diag_code="$(printf '%s' "$dns_diag_line_value" | cut -f2)"
+  dns_diag_level="$(printf '%s' "$dns_diag_line_value" | cut -f3)"
+  dns_diag_summary="$(printf '%s' "$dns_diag_line_value" | cut -f4)"
+  dns_diag_action="$(printf '%s' "$dns_diag_line_value" | cut -f5)"
 
   printf '{\n'
   printf '  "dnsmasq_available": %s,\n' "$dnsmasq_available"
@@ -1554,6 +1638,11 @@ flush_dns_json() {
   printf '  "last_run_at": "%s",\n' "$(json_string "$last_run_at")"
   printf '  "last_status": "%s",\n' "$(json_string "$last_status")"
   printf '  "last_message": "%s",\n' "$(json_string "$last_message")"
+  printf '  "dns_chain": "%s",\n' "$(json_string "$dns_chain")"
+  printf '  "dns_diag_code": "%s",\n' "$(json_string "$dns_diag_code")"
+  printf '  "dns_diag_level": "%s",\n' "$(json_string "$dns_diag_level")"
+  printf '  "dns_diag_summary": "%s",\n' "$(json_string "$dns_diag_summary")"
+  printf '  "dns_diag_action": "%s",\n' "$(json_string "$dns_diag_action")"
   printf '  "hint": "%s"\n' "$(json_string '用于刷新本机 DNS 缓存。会优先重启 dnsmasq；如果系统启用了 smartdns，也会一并重启。')"
   printf '}\n'
 }
