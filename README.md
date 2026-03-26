@@ -39,6 +39,16 @@ This project packages those needs into a lightweight LuCI plugin named `luci-app
 - OpenWrt / iStoreOS package source: `luci-app-openclash-assistant/`
 - One-file installer: `dist/openclash-assistant-istoreos-v0.1.0-r1.run`
 
+## Install Checks
+
+- `.run` installer:
+  - checks for `uci`, LuCI files, `rpcd`, `uhttpd`
+  - auto-installs `bash` and `curl` with `opkg` if missing
+  - warns if `OpenClash` or `dnsmasq-full` are not installed
+- `.ipk` package:
+  - declares package dependencies through `Depends`
+  - prints a short post-install environment check summary
+
 ## Open Source References
 
 This project references or draws inspiration from the following open source projects:

@@ -56,6 +56,74 @@ require_root() {
   fi
 }
 
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+pkg_installed() {
+  opkg status "$1" >/dev/null 2>&1
+}
+
+ensure_pkg() {
+  local pkg="$1"
+  local label="$2"
+
+  if pkg_installed "$pkg"; then
+    echo "[ok] $label"
+    return 0
+  fi
+
+  echo "[install] Missing $label, trying to install package: $pkg"
+  opkg update >/dev/null 2>&1 || {
+    echo "Failed to update opkg feeds while installing $pkg." >&2
+    return 1
+  }
+  opkg install "$pkg" >/dev/null 2>&1 || {
+    echo "Failed to install required package: $pkg" >&2
+    return 1
+  }
+  echo "[ok] Installed $label"
+}
+
+check_runtime_env() {
+  echo "== Environment Check =="
+
+  if ! have_cmd uci; then
+    echo "Missing `uci`. This system does not look like OpenWrt/iStoreOS." >&2
+    exit 1
+  fi
+
+  if [ ! -x /etc/init.d/rpcd ] || [ ! -x /etc/init.d/uhttpd ]; then
+    echo "Missing rpcd/uhttpd service scripts. LuCI runtime looks incomplete." >&2
+    exit 1
+  fi
+
+  if [ ! -d /www/luci-static ] && [ ! -d /usr/lib/lua/luci ]; then
+    echo "LuCI files not found. Please install LuCI before using this installer." >&2
+    exit 1
+  fi
+
+  if ! have_cmd opkg; then
+    echo "Missing opkg. Cannot auto-install runtime dependencies." >&2
+    exit 1
+  fi
+
+  ensure_pkg bash "bash shell"
+  ensure_pkg curl "curl"
+
+  if [ -x /etc/init.d/openclash ] || [ -f /etc/config/openclash ]; then
+    echo "[ok] OpenClash detected"
+  else
+    echo "[warn] OpenClash not detected. The plugin can install, but core helper features expect OpenClash to be present."
+  fi
+
+  if pkg_installed dnsmasq-full; then
+    echo "[ok] dnsmasq-full detected"
+  else
+    echo "[warn] dnsmasq-full not installed. Some DNS-related diagnostics may be limited."
+  fi
+}
+
 restart_services() {
   /etc/init.d/rpcd restart >/dev/null 2>&1 || true
   /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
@@ -63,6 +131,7 @@ restart_services() {
 
 install_payload() {
   local tmpdir payload_line payload_tar
+  check_runtime_env
   tmpdir="$(mktemp -d /tmp/openclash-assistant-run.XXXXXX)"
   trap 'test -n "${tmpdir:-}" && rm -rf "$tmpdir"' EXIT INT TERM
 
@@ -87,6 +156,7 @@ install_payload() {
   restart_services
 
   echo "OpenClash Assistant installed."
+  echo "LuCI entry: Services -> OpenClash Assistant"
 }
 
 uninstall_payload() {
@@ -144,6 +214,11 @@ What it installs:
   /usr/share/rpcd/acl.d/luci-app-openclash-assistant.json
   /www/luci-static/resources/view/openclash-assistant/overview.js
   /www/luci-static/resources/view/openclash-assistant/status.js
+
+Installer behavior:
+  - checks for LuCI / rpcd / uhttpd / uci
+  - auto-installs bash and curl if missing
+  - warns if OpenClash or dnsmasq-full are missing
 EOF
 
 cat > "$release_dir/RELEASE-NOTES.txt" <<EOF

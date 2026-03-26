@@ -6,7 +6,7 @@ PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=OpenAI Codex
 LUCI_TITLE:=LuCI support for OpenClash Assistant
-LUCI_DEPENDS:=+luci-base +luci-compat +bash
+LUCI_DEPENDS:=+luci-base +luci-compat +bash +curl
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk

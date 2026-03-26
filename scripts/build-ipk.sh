@@ -65,6 +65,21 @@ Description: {title}
     "conffiles": b"/etc/config/openclash-assistant\n",
     "postinst": b"""#!/bin/sh
 set -eu
+echo "== OpenClash Assistant post-install check =="
+if command -v opkg >/dev/null 2>&1; then
+  opkg status bash >/dev/null 2>&1 && echo "[ok] bash" || echo "[warn] bash not detected"
+  opkg status curl >/dev/null 2>&1 && echo "[ok] curl" || echo "[warn] curl not detected"
+fi
+if [ -x /etc/init.d/openclash ] || [ -f /etc/config/openclash ]; then
+  echo "[ok] OpenClash detected"
+else
+  echo "[warn] OpenClash not detected"
+fi
+if opkg status dnsmasq-full >/dev/null 2>&1 2>/dev/null; then
+  echo "[ok] dnsmasq-full detected"
+else
+  echo "[warn] dnsmasq-full not detected"
+fi
 chmod +x /usr/libexec/openclash-assistant/diag.sh 2>/dev/null || true
 chmod +x /etc/uci-defaults/90_luci-openclash-assistant 2>/dev/null || true
 /etc/uci-defaults/90_luci-openclash-assistant >/dev/null 2>&1 || true
