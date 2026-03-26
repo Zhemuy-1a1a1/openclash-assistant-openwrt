@@ -237,9 +237,15 @@ media_ai_target_openclash_filter_suffix() {
 }
 
 media_ai_target_enabled() {
-  # Access checks always run against the full built-in target list.
-  # Hidden legacy UCI toggles are ignored for the runtime check pipeline.
-  echo true
+  local option
+
+  option="$(media_ai_target_assistant_option "$1" 2>/dev/null || true)"
+  [ -n "$option" ] || {
+    echo false
+    return 0
+  }
+
+  bool_uci "$option" 0
 }
 
 media_ai_target_probe_backend() {
@@ -1259,7 +1265,7 @@ media_ai_json() {
   elif [ -n "$last_run_at" ]; then
     summary="下面展示的是最近一次助手真实检测结果（${last_run_at}）。"
   else
-    summary='暂无访问检查结果。页面会自动对全部流媒体与 AI 目标执行访问检查，无需手动勾选。'
+    summary='暂无访问检查结果。页面会按当前已启用的流媒体 / AI 目标执行访问检查。'
   fi
 
   if [ "$issue_count" -gt 0 ]; then
