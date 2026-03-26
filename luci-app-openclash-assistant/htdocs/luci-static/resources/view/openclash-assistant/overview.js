@@ -138,6 +138,74 @@ function startMediaAiPolling(canRun, initialState) {
 	window.setTimeout(poll, 4000);
 }
 
+function updateSplitTunnelCardNodes(splitTunnel) {
+	Array.prototype.forEach.call(document.querySelectorAll('[data-split-card]'), function(card) {
+		var key = card.getAttribute('data-split-card');
+		var statusNode = card.querySelector('[data-field="status"]');
+		var latencyNode = card.querySelector('[data-field="latency"]');
+		var exitNode = card.querySelector('[data-field="exit"]');
+		var httpNode = card.querySelector('[data-field="http"]');
+		var detail = splitTunnel[key + '_detail'] || '';
+		var footer = 'HTTP ' + (splitTunnel[key + '_http_code'] || '-');
+		var tone = splitTunnel[key + '_tone'] || 'warn';
+		var showFooter = tone !== 'good';
+		var exitParts = [];
+		var flag = countryFlag(splitTunnel[key + '_exit_country']);
+
+		if (splitTunnel[key + '_exit_country'])
+			exitParts.push((flag ? flag + ' ' : '') + splitTunnel[key + '_exit_country']);
+		if (splitTunnel[key + '_exit_colo'])
+			exitParts.push(splitTunnel[key + '_exit_colo']);
+		if (splitTunnel[key + '_exit_ip'])
+			exitParts.push(splitTunnel[key + '_exit_ip']);
+
+		if (detail && detail !== '-' && detail.indexOf('连接正常') === -1)
+			footer += ' · ' + detail;
+
+		if (statusNode) {
+			statusNode.textContent = splitTunnel[key + '_status_text'] || '暂无结果';
+			statusNode.style.color = toneColor(tone);
+		}
+		if (latencyNode)
+			latencyNode.textContent = splitTunnel[key + '_latency_ms'] ? (splitTunnel[key + '_latency_ms'] + ' ms') : '-';
+		if (exitNode) {
+			exitNode.textContent = exitParts.length ? exitParts.join(' · ') : '出口信息暂不可用';
+			exitNode.style.color = exitParts.length ? '#0f172a' : '#94a3b8';
+			exitNode.style.fontWeight = exitParts.length ? '700' : '500';
+		}
+		if (httpNode) {
+			httpNode.textContent = footer;
+			httpNode.style.display = showFooter ? '' : 'none';
+		}
+	});
+
+	Array.prototype.forEach.call(document.querySelectorAll('[data-split-summary]'), function(node) {
+		var field = node.getAttribute('data-split-summary');
+		if (field === 'summary')
+			node.textContent = splitTunnel.summary || '-';
+		else if (field === 'last_run_at')
+			node.textContent = splitTunnel.last_run_at || '暂无';
+	});
+}
+
+function startSplitTunnelPolling(initialState) {
+	if (!initialState || !initialState.test_running)
+		return;
+
+	var poll = function() {
+		fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'split-tunnel-json' ]).then(function(res) {
+			var nextState = safeParse(res.stdout || '{}', {});
+			window.__openclashAssistantSplitTunnelState = nextState;
+			updateSplitTunnelCardNodes(nextState);
+
+			if (nextState.test_running)
+				window.setTimeout(poll, 4000);
+		}).catch(function() {});
+	};
+
+	window.setTimeout(poll, 4000);
+}
+
 function getSavedTab() {
 	try {
 		return window.localStorage.getItem('openclash-assistant-tab') || 'overview';
@@ -164,6 +232,15 @@ function saveFilter(filterKey) {
 	try {
 		window.localStorage.setItem('openclash-assistant-filter', filterKey);
 	} catch (error) {}
+}
+
+function countryFlag(code) {
+	if (!code || code.length !== 2)
+		return '';
+
+	return code.toUpperCase().replace(/./g, function(char) {
+		return String.fromCodePoint(127397 + char.charCodeAt(0));
+	});
 }
 
 function shouldAutoStartChecks(mediaAi, activeTab) {
@@ -204,6 +281,43 @@ var streamingTargets = mediaTargets.filter(function(item) {
 var aiTargets = mediaTargets.filter(function(item) {
 	return [ 'openai', 'claude', 'gemini' ].indexOf(item.key) >= 0;
 });
+
+var splitTunnelTargets = [
+	{ key: 'alibaba', label: '阿里云', group: '国内' },
+	{ key: 'netease', label: '网易云音乐', group: '国内' },
+	{ key: 'bytedance', label: '字节跳动', group: '国内' },
+	{ key: 'tencent', label: '腾讯', group: '国内' },
+	{ key: 'qualcomm_cn', label: '高通中国', group: '国内' },
+	{ key: 'cloudflare_cn', label: 'Cloudflare 中国网络', group: '国内' },
+	{ key: 'cloudflare', label: 'Cloudflare', group: '国际' },
+	{ key: 'bytedance_global', label: '字节海外', group: '国际' },
+	{ key: 'discord', label: 'Discord', group: '国际' },
+	{ key: 'x', label: 'X / Twitter', group: '国际' },
+	{ key: 'medium', label: 'Medium', group: '国际' },
+	{ key: 'crunchyroll', label: 'Crunchyroll', group: '国际' },
+	{ key: 'chatgpt', label: 'ChatGPT', group: 'AI' },
+	{ key: 'sora', label: 'Sora', group: 'AI' },
+	{ key: 'openai_web', label: 'OpenAI 官网', group: 'AI' },
+	{ key: 'claude', label: 'Claude', group: 'AI' },
+	{ key: 'grok', label: 'Grok', group: 'AI' },
+	{ key: 'anthropic', label: 'Anthropic', group: 'AI' },
+	{ key: 'gemini', label: 'Gemini', group: 'AI' },
+	{ key: 'perplexity', label: 'Perplexity', group: 'AI' },
+	{ key: 'jsdelivr', label: 'jsDelivr', group: '开发 / 静态' },
+	{ key: 'cdnjs', label: 'cdnjs', group: '开发 / 静态' },
+	{ key: 'cloudflaremirrors', label: 'Cloudflare 镜像', group: '开发 / 静态' },
+	{ key: 'npm', label: 'npm Registry', group: '开发 / 静态' },
+	{ key: 'kali', label: 'Kali Download', group: '开发 / 静态' },
+	{ key: 'unpkg', label: 'unpkg', group: '开发 / 静态' },
+	{ key: 'nodejs', label: 'Node.js', group: '开发 / 静态' },
+	{ key: 'gitlab', label: 'GitLab', group: '开发 / 静态' },
+	{ key: 'coinbase', label: 'Coinbase', group: '加密 / 金融' },
+	{ key: 'okx', label: 'OKX', group: '加密 / 金融' }
+];
+
+var splitTunnelPrimaryTargets = [
+	'cloudflare', 'cloudflare_cn', 'x', 'discord', 'chatgpt', 'claude', 'gemini', 'perplexity', 'gitlab', 'okx'
+];
 
 function regionBucket(region) {
 	if (!region)
@@ -251,12 +365,36 @@ function applyMediaFilter(filterKey) {
 	});
 }
 
+function splitTunnelSortKey(item, splitTunnel) {
+	var hasExit = !!(splitTunnel[item.key + '_exit_country'] || splitTunnel[item.key + '_exit_ip'] || splitTunnel[item.key + '_exit_colo']);
+	var groupOrder = { '国内': 0, '国际': 1, 'AI': 2, '开发 / 静态': 3, '加密 / 金融': 4, '其他': 5 };
+	return [
+		hasExit ? 0 : 1,
+		groupOrder[item.group] != null ? groupOrder[item.group] : 9,
+		item.label
+	];
+}
+
+function sortSplitTunnelTargets(items, splitTunnel) {
+	return items.slice().sort(function(a, b) {
+		var ak = splitTunnelSortKey(a, splitTunnel);
+		var bk = splitTunnelSortKey(b, splitTunnel);
+
+		for (var i = 0; i < ak.length; i++) {
+			if (ak[i] < bk[i]) return -1;
+			if (ak[i] > bk[i]) return 1;
+		}
+		return 0;
+	});
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
 			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'status-json' ]).catch(function() { return { stdout: '{}' }; }),
 			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'advice-json' ]).catch(function() { return { stdout: '{}' }; }),
 			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'media-ai-json' ]).catch(function() { return { stdout: '{}' }; }),
+			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'split-tunnel-json' ]).catch(function() { return { stdout: '{}' }; }),
 			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'flush-dns-json' ]).catch(function() { return { stdout: '{}' }; }),
 			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'templates-json' ]).catch(function() { return { stdout: '{"templates":[]}' }; }),
 			fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'auto-switch-json' ]).catch(function() { return { stdout: '{}' }; }),
@@ -270,10 +408,12 @@ return view.extend({
 		var mediaAi = safeParse(data[2].stdout || '{}', {});
 		var currentMediaAi = mediaAi;
 		window.__openclashAssistantMediaAiState = mediaAi;
-		var flushDns = safeParse(data[3].stdout || '{}', {});
-		var templatesData = safeParse(data[4].stdout || '{"templates":[]}', { templates: [] });
-		var autoSwitch = safeParse(data[5].stdout || '{}', {});
-		var subconvert = safeParse(data[6].stdout || '{}', {});
+		var splitTunnel = safeParse(data[3].stdout || '{}', {});
+		window.__openclashAssistantSplitTunnelState = splitTunnel;
+		var flushDns = safeParse(data[4].stdout || '{}', {});
+		var templatesData = safeParse(data[5].stdout || '{"templates":[]}', { templates: [] });
+		var autoSwitch = safeParse(data[6].stdout || '{}', {});
+		var subconvert = safeParse(data[7].stdout || '{}', {});
 		var templates = templatesData.templates || [];
 
 		var map = new form.Map('openclash-assistant', 'OpenClash 助手',
@@ -635,6 +775,77 @@ return view.extend({
 				E('p', { 'style': 'color:#6b7280;' }, '点击后会刷新本机 DNS 缓存，并尽量不影响当前页面其他区域。')
 			]);
 
+			var makeSplitTunnelCards = function(items) {
+				return E('div', {
+					'style': 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px;'
+				}, items.map(function(item) {
+					var tone = splitTunnel[item.key + '_tone'] || 'warn';
+					var color = toneColor(tone);
+					var detail = splitTunnel[item.key + '_detail'] || '';
+					var footer = 'HTTP ' + (splitTunnel[item.key + '_http_code'] || '-');
+					var showFooter = tone !== 'good';
+					var exitParts = [];
+					var flag = countryFlag(splitTunnel[item.key + '_exit_country']);
+
+					if (splitTunnel[item.key + '_exit_country'])
+						exitParts.push((flag ? flag + ' ' : '') + splitTunnel[item.key + '_exit_country']);
+					if (splitTunnel[item.key + '_exit_colo'])
+						exitParts.push(splitTunnel[item.key + '_exit_colo']);
+					if (splitTunnel[item.key + '_exit_ip'])
+						exitParts.push(splitTunnel[item.key + '_exit_ip']);
+
+					if (detail && detail !== '-' && detail.indexOf('连接正常') === -1)
+						footer += ' · ' + detail;
+
+					var isPrimary = splitTunnelPrimaryTargets.indexOf(item.key) >= 0;
+
+					return E('div', {
+						'style': 'border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);box-shadow:0 1px 2px rgba(15,23,42,0.04);min-height:' + (showFooter ? '132px' : '112px') + ';',
+						'data-split-card': item.key
+					}, [
+						E('div', { 'style': 'font-size:15px;font-weight:600;color:#111827;margin-bottom:8px;' }, item.label),
+						E('div', { 'style': 'font-size:11px;color:#6b7280;margin-bottom:6px;' }, item.group),
+						E('div', { 'data-field': 'status', 'style': 'font-size:13px;color:' + color + ';font-weight:700;letter-spacing:0.02em;margin-bottom:8px;' }, splitTunnel[item.key + '_status_text'] || '暂无结果'),
+						E('div', {
+							'data-field': 'exit',
+							'style': 'font-size:' + (isPrimary ? '13px' : '11px') + ';color:' + (exitParts.length ? '#0f172a' : '#94a3b8') + ';font-weight:' + (exitParts.length ? '700' : '500') + ';margin-bottom:8px;line-height:1.4;'
+						}, exitParts.length ? exitParts.join(' / ') : '出口信息暂不可用'),
+						E('div', { 'data-field': 'latency', 'style': 'font-size:32px;line-height:1.05;font-weight:800;color:#111827;' }, splitTunnel[item.key + '_latency_ms'] ? (splitTunnel[item.key + '_latency_ms'] + ' ms') : '-'),
+						E('div', { 'data-field': 'http', 'style': 'font-size:11px;color:#6b7280;margin-top:10px;line-height:1.4;' + (showFooter ? '' : 'display:none;') }, footer)
+					]);
+				}));
+			};
+
+			var splitPrimaryTargets = splitTunnelTargets.filter(function(item) {
+				return splitTunnelPrimaryTargets.indexOf(item.key) >= 0;
+			});
+			splitPrimaryTargets = sortSplitTunnelTargets(splitPrimaryTargets, splitTunnel);
+
+			var splitSecondaryTargets = splitTunnelTargets.filter(function(item) {
+				return splitTunnelPrimaryTargets.indexOf(item.key) < 0;
+			});
+			splitSecondaryTargets = sortSplitTunnelTargets(splitSecondaryTargets, splitTunnel);
+
+			var splitTunnelCards = E('div', { 'class': 'cbi-section' }, [
+				E('h3', '分流测试'),
+				E('p', [
+					badge(splitTunnel.test_running ? '并发检测中' : '空闲', splitTunnel.test_running ? 'warn' : 'good'),
+					badge(splitTunnel.test_running ? '结果完成后统一显示' : ('共 ' + String(splitTunnel.selected_count || 0) + ' 项'), splitTunnel.test_running ? 'warn' : 'good'),
+					badge('连接正常 ' + String(splitTunnel.success_count || 0), (splitTunnel.success_count || 0) > 0 ? 'good' : 'warn'),
+					badge('异常 ' + String(splitTunnel.issue_count || 0), (splitTunnel.issue_count || 0) > 0 ? 'bad' : 'good')
+				]),
+				E('table', { 'class': 'table cbi-section-table' }, [
+					E('tr', [ E('td', '说明'), E('td', { 'data-split-summary': 'summary' }, splitTunnel.summary || '-') ]),
+					E('tr', [ E('td', '最近一次检查'), E('td', { 'data-split-summary': 'last_run_at' }, splitTunnel.last_run_at || '暂无') ])
+				]),
+				E('h4', '核心分流结果'),
+				E('p', { 'style': 'color:#6b7280;' }, '优先展示更适合做出口信息回显判断的目标。'),
+				makeSplitTunnelCards(splitPrimaryTargets),
+				E('h4', { 'style': 'margin-top:16px;' }, '补充目标'),
+				E('p', { 'style': 'color:#6b7280;' }, '这些目标主要用于补充访问状态与延迟，不一定都能稳定回显出口信息。'),
+				makeSplitTunnelCards(splitSecondaryTargets)
+			]);
+
 			var aiHintCards = E('div', { 'class': 'cbi-section' }, [
 				E('h3', 'AI 检查摘要'),
 				E('p', [
@@ -660,6 +871,7 @@ return view.extend({
 
 			var overviewPane = E('div', { 'data-tab-pane': 'overview' });
 			var accessPane = E('div', { 'data-tab-pane': 'access' });
+			var splitPane = E('div', { 'data-tab-pane': 'split' });
 			var aiPane = E('div', { 'data-tab-pane': 'ai' });
 			var dnsPane = E('div', { 'data-tab-pane': 'dns' });
 			var autoPane = E('div', { 'data-tab-pane': 'auto' });
@@ -673,6 +885,8 @@ return view.extend({
 			if (mediaFormSection)
 				accessPane.appendChild(mediaFormSection);
 			accessPane.appendChild(accessCards);
+
+			splitPane.appendChild(splitTunnelCards);
 
 			if (aiFormSection)
 				aiPane.appendChild(aiFormSection);
@@ -692,6 +906,7 @@ return view.extend({
 			var tabDefs = [
 				{ key: 'overview', label: '概览', pane: overviewPane },
 				{ key: 'access', label: '访问检查', pane: accessPane },
+				{ key: 'split', label: '分流测试', pane: splitPane },
 				{ key: 'ai', label: 'AI 检测', pane: aiPane },
 				{ key: 'dns', label: 'DNS 工具', pane: dnsPane },
 				{ key: 'auto', label: '自动切换', pane: autoPane },
@@ -699,7 +914,7 @@ return view.extend({
 			];
 
 			var activeTab = getSavedTab();
-			if (![ 'overview', 'access', 'ai', 'dns', 'auto', 'sub' ].some(function(key) { return key === activeTab; }))
+			if (![ 'overview', 'access', 'split', 'ai', 'dns', 'auto', 'sub' ].some(function(key) { return key === activeTab; }))
 				activeTab = 'overview';
 
 			var tabBar = E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;margin:16px 0;' });
@@ -726,7 +941,14 @@ return view.extend({
 						this.style.borderColor = '#0f766e';
 
 						currentMediaAi = window.__openclashAssistantMediaAiState || currentMediaAi;
-						if (shouldAutoStartChecks(currentMediaAi, tab.key) && currentMediaAi.can_run_live_test) {
+						if (tab.key === 'split') {
+							var currentSplit = window.__openclashAssistantSplitTunnelState || splitTunnel;
+							if (!currentSplit.test_running) {
+								fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'run-split-tunnel-test' ]).then(function() {
+									startSplitTunnelPolling({ test_running: true });
+								}).catch(function() {});
+							}
+						} else if (shouldAutoStartChecks(currentMediaAi, tab.key) && currentMediaAi.can_run_live_test) {
 							fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'run-media-ai-live-test' ]).then(function() {
 								startMediaAiPolling(true, { test_running: true });
 							}).catch(function() {});
@@ -749,6 +971,14 @@ return view.extend({
 					window.__openclashAssistantMediaAiState = currentMediaAi;
 					startMediaAiPolling(true, { test_running: true });
 				}).catch(function() {});
+			} else if (activeTab === 'split') {
+				if (!splitTunnel.test_running) {
+					fs.exec('/usr/libexec/openclash-assistant/diag.sh', [ 'run-split-tunnel-test' ]).then(function() {
+						startSplitTunnelPolling({ test_running: true });
+					}).catch(function() {});
+				} else {
+					startSplitTunnelPolling(splitTunnel);
+				}
 			} else {
 				startMediaAiPolling(mediaAi.can_run_live_test, mediaAi);
 			}

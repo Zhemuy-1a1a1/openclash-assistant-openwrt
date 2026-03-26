@@ -6,7 +6,11 @@ CONFIG_SECTION="main"
 SUB_INI_LIST="/usr/share/openclash/res/sub_ini.list"
 MEDIA_AI_RESULT_FILE="/tmp/openclash-assistant-media-ai-results.tsv"
 MEDIA_AI_RUN_PID_FILE="/tmp/openclash-assistant-media-ai-run.pid"
+MEDIA_AI_PROGRESS_FILE="/tmp/openclash-assistant-media-ai-progress.tsv"
 FLUSH_DNS_STATE_FILE="/tmp/openclash-assistant-flush-dns-state.tsv"
+SPLIT_TUNNEL_RESULT_FILE="/tmp/openclash-assistant-split-tunnel-results.tsv"
+SPLIT_TUNNEL_RUN_PID_FILE="/tmp/openclash-assistant-split-tunnel-run.pid"
+SPLIT_TUNNEL_PROGRESS_FILE="/tmp/openclash-assistant-split-tunnel-progress.tsv"
 OPENCLASH_STREAMING_UNLOCK="/usr/share/openclash/openclash_streaming_unlock.lua"
 OPENCLASH_UNLOCK_CACHE="/etc/openclash/history/streaming_unlock_cache"
 
@@ -111,6 +115,26 @@ write_flush_dns_state() {
   local status="$2"
   local message="$3"
   printf '%s\t%s\t%s\n' "$last_run_at" "$status" "$(sanitize_one_line "$message")" > "$FLUSH_DNS_STATE_FILE"
+}
+
+progress_state_value() {
+  local file="$1"
+  local field="$2"
+  [ -r "$file" ] || return 0
+  awk -F '\t' -v field="$field" '
+    NR == 1 {
+      if (field == "selected") print $1;
+      else if (field == "completed") print $2;
+      else if (field == "started_at") print $3;
+    }' "$file"
+}
+
+write_progress_state() {
+  local file="$1"
+  local selected="$2"
+  local completed="$3"
+  local started_at="$4"
+  printf '%s\t%s\t%s\n' "$selected" "$completed" "$started_at" > "$file"
 }
 
 milliseconds_from_seconds() {
@@ -244,6 +268,121 @@ media_ai_target_probe_url() {
   esac
 }
 
+split_tunnel_target_keys() {
+  printf '%s\n' \
+    alibaba netease bytedance tencent qualcomm_cn cloudflare_cn \
+    cloudflare bytedance_global discord x medium crunchyroll \
+    chatgpt sora openai_web claude grok anthropic perplexity \
+    jsdelivr cdnjs cloudflaremirrors npm kali unpkg nodejs gitlab \
+    coinbase okx
+}
+
+split_tunnel_target_label() {
+  case "$1" in
+    alibaba) printf '%s' '阿里云' ;;
+    netease) printf '%s' '网易云音乐' ;;
+    bytedance) printf '%s' '字节跳动' ;;
+    tencent) printf '%s' '腾讯' ;;
+    qualcomm_cn) printf '%s' '高通中国' ;;
+    cloudflare_cn) printf '%s' 'Cloudflare 中国网络' ;;
+    cloudflare) printf '%s' 'Cloudflare' ;;
+    bytedance_global) printf '%s' '字节海外' ;;
+    discord) printf '%s' 'Discord' ;;
+    x) printf '%s' 'X / Twitter' ;;
+    medium) printf '%s' 'Medium' ;;
+    crunchyroll) printf '%s' 'Crunchyroll' ;;
+    chatgpt) printf '%s' 'ChatGPT' ;;
+    sora) printf '%s' 'Sora' ;;
+    openai_web) printf '%s' 'OpenAI 官网' ;;
+    claude) printf '%s' 'Claude' ;;
+    grok) printf '%s' 'Grok' ;;
+    anthropic) printf '%s' 'Anthropic' ;;
+    gemini) printf '%s' 'Gemini' ;;
+    perplexity) printf '%s' 'Perplexity' ;;
+    jsdelivr) printf '%s' 'jsDelivr' ;;
+    cdnjs) printf '%s' 'cdnjs' ;;
+    cloudflaremirrors) printf '%s' 'Cloudflare 镜像' ;;
+    npm) printf '%s' 'npm Registry' ;;
+    kali) printf '%s' 'Kali Download' ;;
+    unpkg) printf '%s' 'unpkg' ;;
+    nodejs) printf '%s' 'Node.js' ;;
+    gitlab) printf '%s' 'GitLab' ;;
+    coinbase) printf '%s' 'Coinbase' ;;
+    okx) printf '%s' 'OKX' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+split_tunnel_target_group() {
+  case "$1" in
+    alibaba|netease|bytedance|tencent|qualcomm_cn|cloudflare_cn) printf '%s' '国内' ;;
+    cloudflare|bytedance_global|discord|x|medium|crunchyroll) printf '%s' '国际' ;;
+    chatgpt|sora|openai_web|claude|grok|anthropic|gemini|perplexity) printf '%s' 'AI' ;;
+    jsdelivr|cdnjs|cloudflaremirrors|npm|kali|unpkg|nodejs|gitlab) printf '%s' '开发 / 静态' ;;
+    coinbase|okx) printf '%s' '加密 / 金融' ;;
+    *) printf '%s' '其他' ;;
+  esac
+}
+
+split_tunnel_target_url() {
+  case "$1" in
+    alibaba) printf '%s' 'https://www.aliyun.com/' ;;
+    netease) printf '%s' 'https://music.163.com/' ;;
+    bytedance) printf '%s' 'https://www.bytedance.com/' ;;
+    tencent) printf '%s' 'https://www.qq.com/' ;;
+    qualcomm_cn) printf '%s' 'https://www.qualcomm.cn/' ;;
+    cloudflare_cn) printf '%s' 'https://www.cloudflare-cn.com/' ;;
+    cloudflare) printf '%s' 'https://www.cloudflare.com/' ;;
+    bytedance_global) printf '%s' 'https://www.byteplus.com/' ;;
+    discord) printf '%s' 'https://discord.com/' ;;
+    x) printf '%s' 'https://x.com/' ;;
+    medium) printf '%s' 'https://medium.com/' ;;
+    crunchyroll) printf '%s' 'https://www.crunchyroll.com/' ;;
+    chatgpt) printf '%s' 'https://chatgpt.com/' ;;
+    sora) printf '%s' 'https://sora.com/' ;;
+    openai_web) printf '%s' 'https://openai.com/' ;;
+    claude) printf '%s' 'https://claude.ai/' ;;
+    grok) printf '%s' 'https://grok.com/' ;;
+    anthropic) printf '%s' 'https://www.anthropic.com/' ;;
+    gemini) printf '%s' 'https://gemini.google.com/' ;;
+    perplexity) printf '%s' 'https://www.perplexity.ai/' ;;
+    jsdelivr) printf '%s' 'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js' ;;
+    cdnjs) printf '%s' 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js' ;;
+    cloudflaremirrors) printf '%s' 'https://cloudflaremirrors.com/' ;;
+    npm) printf '%s' 'https://registry.npmjs.org/' ;;
+    kali) printf '%s' 'https://kali.download/' ;;
+    unpkg) printf '%s' 'https://unpkg.com/react@18/umd/react.production.min.js' ;;
+    nodejs) printf '%s' 'https://nodejs.org/' ;;
+    gitlab) printf '%s' 'https://gitlab.com/' ;;
+    coinbase) printf '%s' 'https://www.coinbase.com/' ;;
+    okx) printf '%s' 'https://www.okx.com/' ;;
+    *) return 1 ;;
+  esac
+}
+
+split_tunnel_trace_url() {
+  case "$1" in
+    cloudflare_cn) printf '%s' 'https://www.cloudflare-cn.com/cdn-cgi/trace' ;;
+    cloudflare) printf '%s' 'https://www.cloudflare.com/cdn-cgi/trace' ;;
+    bytedance_global) printf '%s' 'https://www.byteplus.com/cdn-cgi/trace' ;;
+    discord) printf '%s' 'https://discord.com/cdn-cgi/trace' ;;
+    x) printf '%s' 'https://x.com/cdn-cgi/trace' ;;
+    medium) printf '%s' 'https://medium.com/cdn-cgi/trace' ;;
+    chatgpt) printf '%s' 'https://chatgpt.com/cdn-cgi/trace' ;;
+    sora) printf '%s' 'https://sora.com/cdn-cgi/trace' ;;
+    openai_web) printf '%s' 'https://openai.com/cdn-cgi/trace' ;;
+    claude) printf '%s' 'https://claude.ai/cdn-cgi/trace' ;;
+    grok) printf '%s' 'https://grok.com/cdn-cgi/trace' ;;
+    anthropic) printf '%s' 'https://www.anthropic.com/cdn-cgi/trace' ;;
+    perplexity) printf '%s' 'https://www.perplexity.ai/cdn-cgi/trace' ;;
+    cdnjs) printf '%s' 'https://cdnjs.cloudflare.com/cdn-cgi/trace' ;;
+    cloudflaremirrors) printf '%s' 'https://cloudflaremirrors.com/cdn-cgi/trace' ;;
+    gitlab) printf '%s' 'https://gitlab.com/cdn-cgi/trace' ;;
+    okx) printf '%s' 'https://www.okx.com/cdn-cgi/trace' ;;
+    *) return 1 ;;
+  esac
+}
+
 media_ai_test_running() {
   local pid
   if [ ! -f "$MEDIA_AI_RUN_PID_FILE" ]; then
@@ -330,6 +469,18 @@ media_ai_extract_latency_ms() {
 
 media_ai_extract_http_code() {
   printf '%s\n' "$1" | sed -n 's/^ACCESS_[A-Z_]*|[0-9][0-9]*|\([0-9][0-9]*\)|.*$/\1/p' | head -n 1
+}
+
+split_tunnel_extract_exit_ip() {
+  printf '%s\n' "$1" | awk -F '|' '{ if (NF >= 6) print $6 }' | head -n 1
+}
+
+split_tunnel_extract_exit_country() {
+  printf '%s\n' "$1" | awk -F '|' '{ if (NF >= 7) print $7 }' | head -n 1
+}
+
+split_tunnel_extract_exit_colo() {
+  printf '%s\n' "$1" | awk -F '|' '{ if (NF >= 8) print $8 }' | head -n 1
 }
 
 media_ai_status_code_from_text() {
@@ -528,6 +679,21 @@ run_media_ai_target_probe() {
   stream_type="$(media_ai_target_type "$key")"
   message="$(media_ai_site_probe "$(media_ai_target_probe_url "$key")" "$stream_type")"
   printf '%s' "$message"
+}
+
+split_tunnel_probe_exit_identity() {
+  local url trace ip loc colo
+  url="$1"
+  [ -n "$url" ] || return 0
+
+  trace="$(curl -k -sS -m 12 "$url" 2>/dev/null || true)"
+  ip="$(printf '%s\n' "$trace" | sed -n 's/^ip=\(.*\)$/\1/p' | head -n 1)"
+  loc="$(printf '%s\n' "$trace" | sed -n 's/^loc=\(.*\)$/\1/p' | head -n 1)"
+  colo="$(printf '%s\n' "$trace" | sed -n 's/^colo=\(.*\)$/\1/p' | head -n 1)"
+
+  if [ -n "$ip" ]; then
+    printf '%s|%s|%s' "$ip" "$loc" "$colo"
+  fi
 }
 
 media_ai_source_text() {
@@ -1021,7 +1187,7 @@ apply_subconvert() {
 }
 
 media_ai_json() {
-  local enabled group_filter region_filter node_filter current_global current_logic current_openai current_netflix current_disney current_youtube current_prime current_bilibili selected summary suggestion commands live_running last_run_at success_count partial_count issue_count cache_count assistant_count can_run_live_test key json_fields toggle_option filter_suffix selected_count
+  local enabled group_filter region_filter node_filter current_global current_logic current_openai current_netflix current_disney current_youtube current_prime current_bilibili selected summary suggestion commands live_running last_run_at success_count partial_count issue_count cache_count assistant_count can_run_live_test key json_fields toggle_option filter_suffix selected_count progress_selected progress_completed
 
   enabled="$(bool_uci media_ai_enabled 1)"
   group_filter="$(str_uci media_ai_group_filter '')"
@@ -1059,6 +1225,8 @@ media_ai_json() {
   cache_count=0
   assistant_count=0
   json_fields=''
+  progress_selected="$(progress_state_value "$MEDIA_AI_PROGRESS_FILE" selected)"
+  progress_completed="$(progress_state_value "$MEDIA_AI_PROGRESS_FILE" completed)"
 
   for key in $(media_ai_target_keys); do
     set_media_ai_target_state "$key"
@@ -1085,7 +1253,9 @@ media_ai_json() {
   done
 
   if [ "$live_running" = true ]; then
-    summary="真实检测正在后台执行，当前已完成 ${assistant_count}/${selected_count} 项。页面会自动刷新显示最新结果。"
+    [ -n "$progress_selected" ] && selected_count="$progress_selected"
+    [ -n "$progress_completed" ] && assistant_count="$progress_completed"
+    summary="真实检测正在后台执行，当前已完成 ${assistant_count}/${selected_count} 项。完成后会一次性刷新全部结果。"
   elif [ -n "$last_run_at" ]; then
     summary="下面展示的是最近一次助手真实检测结果（${last_run_at}）。"
   else
@@ -1157,7 +1327,7 @@ media_ai_json() {
 }
 
 run_media_ai_live_test() {
-  local running count key message require_openclash require_api
+  local running count key message require_openclash require_api completed now
 
   require_openclash=false
   require_api=false
@@ -1214,14 +1384,21 @@ run_media_ai_live_test() {
   fi
 
   (
-    trap 'rm -f "$MEDIA_AI_RUN_PID_FILE"' EXIT INT TERM
-    : > "$MEDIA_AI_RESULT_FILE"
+    trap 'rm -f "$MEDIA_AI_RUN_PID_FILE" "$MEDIA_AI_PROGRESS_FILE" "${MEDIA_AI_RESULT_FILE}.tmp"' EXIT INT TERM
+    : > "${MEDIA_AI_RESULT_FILE}.tmp"
+    completed=0
+    now="$(date '+%Y-%m-%d %H:%M:%S')"
+    write_progress_state "$MEDIA_AI_PROGRESS_FILE" "$count" 0 "$now"
 
     for key in $(media_ai_target_keys); do
       [ "$(media_ai_target_enabled "$key")" = true ] || continue
       message="$(run_media_ai_target_probe "$key")"
-      printf '%s\t%s\t%s\n' "$key" "$(date '+%Y-%m-%d %H:%M:%S')" "$message" >> "$MEDIA_AI_RESULT_FILE"
+      printf '%s\t%s\t%s\n' "$key" "$(date '+%Y-%m-%d %H:%M:%S')" "$message" >> "${MEDIA_AI_RESULT_FILE}.tmp"
+      completed=$((completed + 1))
+      write_progress_state "$MEDIA_AI_PROGRESS_FILE" "$count" "$completed" "$now"
     done
+
+    mv "${MEDIA_AI_RESULT_FILE}.tmp" "$MEDIA_AI_RESULT_FILE"
   ) >/dev/null 2>&1 &
 
   printf '%s\n' "$!" > "$MEDIA_AI_RUN_PID_FILE"
@@ -1412,14 +1589,176 @@ flush_dns() {
   printf '}\n'
 }
 
+split_tunnel_test_running() {
+  local pid
+  if [ ! -f "$SPLIT_TUNNEL_RUN_PID_FILE" ]; then
+    echo false
+    return 0
+  fi
+
+  pid="$(cat "$SPLIT_TUNNEL_RUN_PID_FILE" 2>/dev/null || true)"
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    echo true
+    return 0
+  fi
+
+  rm -f "$SPLIT_TUNNEL_RUN_PID_FILE"
+  echo false
+}
+
+split_tunnel_result_line() {
+  local key="$1"
+  [ -r "$SPLIT_TUNNEL_RESULT_FILE" ] || return 1
+  awk -F '\t' -v key="$key" '$1 == key { print; exit }' "$SPLIT_TUNNEL_RESULT_FILE"
+}
+
+split_tunnel_json() {
+  local test_running last_run_at selected_count completed_count success_count issue_count key line tested_at detail status latency http_code exit_ip exit_country exit_colo json_fields summary
+
+  test_running="$(split_tunnel_test_running)"
+  last_run_at=''
+  [ -r "$SPLIT_TUNNEL_RESULT_FILE" ] && last_run_at="$(awk -F '\t' 'END { if (NR > 0) print $2 }' "$SPLIT_TUNNEL_RESULT_FILE")"
+  selected_count="$(printf '%s\n' "$(split_tunnel_target_keys)" | wc -l | tr -d ' ')"
+  completed_count="$(progress_state_value "$SPLIT_TUNNEL_PROGRESS_FILE" completed)"
+  [ -n "$completed_count" ] || completed_count=0
+  success_count=0
+  issue_count=0
+  json_fields=''
+
+  for key in $(split_tunnel_target_keys); do
+    line="$(split_tunnel_result_line "$key" 2>/dev/null || true)"
+    tested_at=''
+    detail=''
+    status='no_data'
+    latency=''
+    http_code=''
+    exit_ip=''
+    exit_country=''
+    exit_colo=''
+
+    if [ -n "$line" ]; then
+      tested_at="$(printf '%s' "$line" | cut -f2)"
+      detail="$(printf '%s' "$line" | cut -f3-)"
+      status="$(media_ai_status_code_from_text "$detail")"
+      latency="$(media_ai_extract_latency_ms "$detail")"
+      http_code="$(media_ai_extract_http_code "$detail")"
+      exit_ip="$(split_tunnel_extract_exit_ip "$detail")"
+      exit_country="$(split_tunnel_extract_exit_country "$detail")"
+      exit_colo="$(split_tunnel_extract_exit_colo "$detail")"
+    fi
+
+    case "$status" in
+      reachable|available|full_support) success_count=$((success_count + 1)) ;;
+      restricted|blocked|failed|no_unlock|other_region|homemade_only|unknown) issue_count=$((issue_count + 1)) ;;
+    esac
+
+    json_fields="${json_fields}  \"${key}_label\": \"$(json_string "$(split_tunnel_target_label "$key")")\",\n"
+    json_fields="${json_fields}  \"${key}_group\": \"$(json_string "$(split_tunnel_target_group "$key")")\",\n"
+    json_fields="${json_fields}  \"${key}_status\": \"$(json_string "$status")\",\n"
+    json_fields="${json_fields}  \"${key}_status_text\": \"$(json_string "$(media_ai_status_label "$status")")\",\n"
+    json_fields="${json_fields}  \"${key}_tone\": \"$(json_string "$(media_ai_status_tone "$status")")\",\n"
+    json_fields="${json_fields}  \"${key}_latency_ms\": \"$(json_string "$latency")\",\n"
+    json_fields="${json_fields}  \"${key}_http_code\": \"$(json_string "$http_code")\",\n"
+    json_fields="${json_fields}  \"${key}_exit_ip\": \"$(json_string "$exit_ip")\",\n"
+    json_fields="${json_fields}  \"${key}_exit_country\": \"$(json_string "$exit_country")\",\n"
+    json_fields="${json_fields}  \"${key}_exit_colo\": \"$(json_string "$exit_colo")\",\n"
+    json_fields="${json_fields}  \"${key}_tested_at\": \"$(json_string "$tested_at")\",\n"
+    json_fields="${json_fields}  \"${key}_detail\": \"$(json_string "$detail")\",\n"
+  done
+
+  if [ "$test_running" = true ]; then
+    summary='分流测试执行中，全部目标并发检测，完成后会一次性刷新全部结果。'
+  elif [ -n "$last_run_at" ]; then
+    summary="下面展示的是最近一次分流测试结果（${last_run_at}）。"
+    completed_count="$selected_count"
+  else
+    summary='暂无分流测试结果。进入该标签页后会自动开始检测。'
+  fi
+
+  printf '{\n'
+  printf '  "test_running": %s,\n' "$test_running"
+  printf '  "last_run_at": "%s",\n' "$(json_string "$last_run_at")"
+  printf '  "selected_count": %s,\n' "$selected_count"
+  printf '  "completed_count": %s,\n' "$completed_count"
+  printf '  "success_count": %s,\n' "$success_count"
+  printf '  "issue_count": %s,\n' "$issue_count"
+  printf '  "summary": "%s",\n' "$(json_string "$summary")"
+  printf '%b' "$json_fields"
+  printf '  "ok": true\n'
+  printf '}\n'
+}
+
+run_split_tunnel_test() {
+  local running count key message completed now exit_meta trace_url tmpdir idx pids file
+
+  running="$(split_tunnel_test_running)"
+  if [ "$running" = true ]; then
+    printf '{\n'
+    printf '  "ok": false,\n'
+    printf '  "message": "%s"\n' "$(json_string '已有一轮分流测试正在后台执行，请稍后查看结果。')"
+    printf '}\n'
+    return 0
+  fi
+
+  count="$(printf '%s\n' "$(split_tunnel_target_keys)" | wc -l | tr -d ' ')"
+
+  (
+    tmpdir="$(mktemp -d /tmp/openclash-assistant-split.XXXXXX)"
+    trap 'rm -f "$SPLIT_TUNNEL_RUN_PID_FILE" "$SPLIT_TUNNEL_PROGRESS_FILE" "${SPLIT_TUNNEL_RESULT_FILE}.tmp"; rm -rf "$tmpdir"' EXIT INT TERM
+    : > "${SPLIT_TUNNEL_RESULT_FILE}.tmp"
+    completed=0
+    idx=0
+    pids=''
+    now="$(date '+%Y-%m-%d %H:%M:%S')"
+    write_progress_state "$SPLIT_TUNNEL_PROGRESS_FILE" "$count" 0 "$now"
+
+    for key in $(split_tunnel_target_keys); do
+      idx=$((idx + 1))
+      file="$tmpdir/$(printf '%03d' "$idx")-${key}.tsv"
+      (
+        message="$(media_ai_site_probe "$(split_tunnel_target_url "$key")" "$(split_tunnel_target_label "$key")")"
+        trace_url="$(split_tunnel_trace_url "$key" 2>/dev/null || true)"
+        exit_meta="$(split_tunnel_probe_exit_identity "$trace_url" 2>/dev/null || true)"
+        if [ -n "$exit_meta" ]; then
+          message="${message}|${exit_meta}"
+        fi
+        printf '%s\t%s\t%s\n' "$key" "$(date '+%Y-%m-%d %H:%M:%S')" "$message" > "$file"
+      ) >/dev/null 2>&1 &
+      pids="$pids $!"
+    done
+
+    for pid in $pids; do
+      wait "$pid" || true
+    done
+
+    for file in "$tmpdir"/*.tsv; do
+      [ -f "$file" ] || continue
+      cat "$file" >> "${SPLIT_TUNNEL_RESULT_FILE}.tmp"
+      completed=$((completed + 1))
+    done
+    write_progress_state "$SPLIT_TUNNEL_PROGRESS_FILE" "$count" "$completed" "$now"
+
+    mv "${SPLIT_TUNNEL_RESULT_FILE}.tmp" "$SPLIT_TUNNEL_RESULT_FILE"
+  ) >/dev/null 2>&1 &
+
+  printf '%s\n' "$!" > "$SPLIT_TUNNEL_RUN_PID_FILE"
+
+  printf '{\n'
+  printf '  "ok": true,\n'
+  printf '  "message": "%s"\n' "$(json_string "已在后台启动 ${count} 项分流测试。完成后会一次性刷新全部结果。")"
+  printf '}\n'
+}
+
 case "${1:-status-json}" in
   status-json) status_json ;;
   advice-json) advice_json ;;
   auto-switch-json) auto_switch_json ;;
   media-ai-json) media_ai_json ;;
+  split-tunnel-json) split_tunnel_json ;;
   flush-dns-json) flush_dns_json ;;
   templates-json) templates_json ;;
   subconvert-json) subconvert_json ;;
+  run-split-tunnel-test) run_split_tunnel_test ;;
   flush-dns) flush_dns ;;
   apply-auto-switch) apply_auto_switch ;;
   apply-media-ai) apply_media_ai ;;
@@ -1428,7 +1767,7 @@ case "${1:-status-json}" in
   sync-media-ai-from-openclash) sync_media_ai_from_openclash ;;
   sync-subconvert-from-openclash) sync_subconvert_from_openclash ;;
   *)
-    echo "usage: $0 {status-json|advice-json|auto-switch-json|media-ai-json|flush-dns-json|templates-json|subconvert-json|flush-dns|apply-auto-switch|apply-media-ai|run-media-ai-live-test|apply-subconvert|sync-media-ai-from-openclash|sync-subconvert-from-openclash}" >&2
+    echo "usage: $0 {status-json|advice-json|auto-switch-json|media-ai-json|split-tunnel-json|flush-dns-json|templates-json|subconvert-json|run-split-tunnel-test|flush-dns|apply-auto-switch|apply-media-ai|run-media-ai-live-test|apply-subconvert|sync-media-ai-from-openclash|sync-subconvert-from-openclash}" >&2
     exit 1
   ;;
 esac
