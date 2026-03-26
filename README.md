@@ -7,6 +7,12 @@
 - 中文使用说明：[`docs/中文说明.md`](docs/中文说明.md)
 - GitHub Release 中文说明：[`docs/github-release-v0.1.0-zh.md`](docs/github-release-v0.1.0-zh.md)
 
+## 一键安装命令
+
+```sh
+cd /tmp && curl -L -o openclash-assistant-istoreos-v0.1.0-r1.run https://github.com/Zhemuy-1a1a1/openclash-assistant-openwrt/releases/download/v0.1.0/openclash-assistant-istoreos-v0.1.0-r1.run && chmod +x openclash-assistant-istoreos-v0.1.0-r1.run && sh openclash-assistant-istoreos-v0.1.0-r1.run
+```
+
 ## 项目简介
 
 当前版本主要提供：

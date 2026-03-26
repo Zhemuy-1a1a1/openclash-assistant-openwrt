@@ -25,6 +25,12 @@ OpenClash Assistant 是一个面向 iStoreOS / OpenWrt 的 LuCI 辅助插件。
 
 ## 安装方式
 
+### 一键安装命令
+
+```sh
+cd /tmp && curl -L -o openclash-assistant-istoreos-v0.1.0-r1.run https://github.com/Zhemuy-1a1a1/openclash-assistant-openwrt/releases/download/v0.1.0/openclash-assistant-istoreos-v0.1.0-r1.run && chmod +x openclash-assistant-istoreos-v0.1.0-r1.run && sh openclash-assistant-istoreos-v0.1.0-r1.run
+```
+
 ### 方式一：使用 `.run`
 
 ```sh
