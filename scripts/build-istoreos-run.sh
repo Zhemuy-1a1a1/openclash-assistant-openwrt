@@ -56,6 +56,19 @@ require_root() {
   fi
 }
 
+say() {
+  printf '%s\n' "$1"
+}
+
+section() {
+  printf '\n== %s ==\n' "$1"
+}
+
+fatal() {
+  printf '[错误] %s\n' "$1" >&2
+  exit 1
+}
+
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -69,58 +82,57 @@ ensure_pkg() {
   local label="$2"
 
   if pkg_installed "$pkg"; then
-    echo "[ok] $label"
+    printf '[已满足] %s\n' "$label"
     return 0
   fi
 
-  echo "[install] Missing $label, trying to install package: $pkg"
+  printf '[自动补装] 缺少 %s，正在安装 %s ...\n' "$label" "$pkg"
   opkg update >/dev/null 2>&1 || {
-    echo "Failed to update opkg feeds while installing $pkg." >&2
+    printf '[失败] 无法更新 opkg 软件源，安装 %s 失败。\n' "$pkg" >&2
     return 1
   }
   opkg install "$pkg" >/dev/null 2>&1 || {
-    echo "Failed to install required package: $pkg" >&2
+    printf '[失败] 无法安装依赖包：%s\n' "$pkg" >&2
     return 1
   }
-  echo "[ok] Installed $label"
+  printf '[已安装] %s\n' "$label"
 }
 
 check_runtime_env() {
-  echo "== Environment Check =="
+  section "安装前环境检测"
+  say "目标系统：iStoreOS / OpenWrt"
 
   if ! have_cmd uci; then
-    echo "Missing `uci`. This system does not look like OpenWrt/iStoreOS." >&2
-    exit 1
+    fatal "缺少 uci，当前系统看起来不是标准 OpenWrt / iStoreOS 环境。"
   fi
 
   if [ ! -x /etc/init.d/rpcd ] || [ ! -x /etc/init.d/uhttpd ]; then
-    echo "Missing rpcd/uhttpd service scripts. LuCI runtime looks incomplete." >&2
-    exit 1
+    fatal "缺少 rpcd 或 uhttpd 服务脚本，LuCI 运行环境不完整。"
   fi
 
   if [ ! -d /www/luci-static ] && [ ! -d /usr/lib/lua/luci ]; then
-    echo "LuCI files not found. Please install LuCI before using this installer." >&2
-    exit 1
+    fatal "未检测到 LuCI 文件，请先安装 LuCI。"
   fi
 
   if ! have_cmd opkg; then
-    echo "Missing opkg. Cannot auto-install runtime dependencies." >&2
-    exit 1
+    fatal "缺少 opkg，无法自动补装依赖。"
   fi
 
-  ensure_pkg bash "bash shell"
-  ensure_pkg curl "curl"
+  section "自动补装依赖"
+  ensure_pkg bash "bash 运行环境"
+  ensure_pkg curl "curl 访问检查依赖"
 
+  section "建议项检查"
   if [ -x /etc/init.d/openclash ] || [ -f /etc/config/openclash ]; then
-    echo "[ok] OpenClash detected"
+    say "[已满足] 检测到 OpenClash"
   else
-    echo "[warn] OpenClash not detected. The plugin can install, but core helper features expect OpenClash to be present."
+    say "[提示] 未检测到 OpenClash。插件可以安装，但核心功能默认面向 OpenClash 使用场景。"
   fi
 
   if pkg_installed dnsmasq-full; then
-    echo "[ok] dnsmasq-full detected"
+    say "[已满足] 检测到 dnsmasq-full"
   else
-    echo "[warn] dnsmasq-full not installed. Some DNS-related diagnostics may be limited."
+    say "[提示] 未检测到 dnsmasq-full。部分 DNS 检查与刷新能力可能受限。"
   fi
 }
 
@@ -155,8 +167,9 @@ install_payload() {
   uci -q commit openclash-assistant || true
   restart_services
 
-  echo "OpenClash Assistant installed."
-  echo "LuCI entry: Services -> OpenClash Assistant"
+  section "安装完成"
+  say "[完成] OpenClash Assistant 已安装。"
+  say "LuCI 入口：服务 -> OpenClash Assistant"
 }
 
 uninstall_payload() {
@@ -170,7 +183,8 @@ uninstall_payload() {
   rm -f /www/luci-static/resources/view/openclash-assistant/status.js
   rmdir /www/luci-static/resources/view/openclash-assistant 2>/dev/null || true
   restart_services
-  echo "OpenClash Assistant removed."
+  section "卸载完成"
+  say "[完成] OpenClash Assistant 已移除。"
 }
 
 main() {
@@ -216,7 +230,7 @@ What it installs:
   /www/luci-static/resources/view/openclash-assistant/status.js
 
 Installer behavior:
-  - checks for LuCI / rpcd / uhttpd / uci
+  - checks LuCI / rpcd / uhttpd / uci
   - auto-installs bash and curl if missing
   - warns if OpenClash or dnsmasq-full are missing
 EOF

@@ -18,6 +18,6 @@ What it installs:
   /www/luci-static/resources/view/openclash-assistant/status.js
 
 Installer behavior:
-  - checks for LuCI / rpcd / uhttpd / uci
+  - checks LuCI / rpcd / uhttpd / uci
   - auto-installs bash and curl if missing
   - warns if OpenClash or dnsmasq-full are missing
