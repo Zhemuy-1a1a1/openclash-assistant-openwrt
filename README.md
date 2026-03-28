@@ -34,21 +34,14 @@ cd /tmp && curl -L -o openclash-assistant-istoreos-v0.1.1-r1.run https://github.
 
 ## 界面截图
 
-### 订阅导入与转换
-
-![订阅导入与转换](docs/screenshots/dashboard-subscription.png)
-
-### 基础场景 / 状态 / 建议
-
-![基础场景与状态概览](docs/screenshots/dashboard-overview.png)
-
-### 一键体检
-
-![一键体检](docs/screenshots/dashboard-checkup.png)
-
-### 网站走向检测
-
-![网站走向检测](docs/screenshots/dashboard-split.png)
+<p align="center">
+  <img src="docs/screenshots/dashboard-subscription.png" alt="订阅导入与转换" width="49%" />
+  <img src="docs/screenshots/dashboard-overview.png" alt="基础场景与状态概览" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/dashboard-checkup.png" alt="一键体检" width="49%" />
+  <img src="docs/screenshots/dashboard-split.png" alt="网站走向检测" width="49%" />
+</p>
 
 ## 安装方式
 
