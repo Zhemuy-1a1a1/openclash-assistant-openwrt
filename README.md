@@ -5,12 +5,12 @@
 ## 中文说明
 
 - 中文使用说明：[`docs/中文说明.md`](docs/中文说明.md)
-- GitHub Release 中文说明：[`docs/github-release-v0.1.0-zh.md`](docs/github-release-v0.1.0-zh.md)
+- GitHub Release 中文说明：[`docs/github-release-v0.1.1-zh.md`](docs/github-release-v0.1.1-zh.md)
 
 ## 一键安装命令
 
 ```sh
-cd /tmp && curl -L -o openclash-assistant-istoreos-v0.1.0-r1.run https://github.com/Zhemuy-1a1a1/openclash-assistant-openwrt/releases/download/v0.1.0/openclash-assistant-istoreos-v0.1.0-r1.run && chmod +x openclash-assistant-istoreos-v0.1.0-r1.run && sh openclash-assistant-istoreos-v0.1.0-r1.run
+cd /tmp && curl -L -o openclash-assistant-istoreos-v0.1.1-r1.run https://github.com/Zhemuy-1a1a1/openclash-assistant-openwrt/releases/download/v0.1.1/openclash-assistant-istoreos-v0.1.1-r1.run && chmod +x openclash-assistant-istoreos-v0.1.1-r1.run && sh openclash-assistant-istoreos-v0.1.1-r1.run
 ```
 
 ## 项目简介
@@ -26,18 +26,36 @@ cd /tmp && curl -L -o openclash-assistant-istoreos-v0.1.0-r1.run https://github.
 - `自动切换`
   辅助查看并应用 OpenClash 自动切换设置
 - `订阅转换`
-  辅助生成和写入订阅转换配置
+  内置 `sub-web-modify` 前端，并默认对接本机 `subconverter` 后端
 
 页面入口：
 
 `服务` -> `OpenClash Assistant`
 
+## 界面截图
+
+### 订阅导入与转换
+
+![订阅导入与转换](docs/screenshots/dashboard-subscription.png)
+
+### 基础场景 / 状态 / 建议
+
+![基础场景与状态概览](docs/screenshots/dashboard-overview.png)
+
+### 一键体检
+
+![一键体检](docs/screenshots/dashboard-checkup.png)
+
+### 网站走向检测
+
+![网站走向检测](docs/screenshots/dashboard-split.png)
+
 ## 安装方式
 
 - `ipk` 包：
-  `dist/luci-app-openclash-assistant_0.1.0-1_all.ipk`
+  `dist/luci-app-openclash-assistant_0.1.1-1_all.ipk`
 - `.run` 安装包：
-  `dist/openclash-assistant-istoreos-v0.1.0-r1.run`
+  `dist/openclash-assistant-istoreos-v0.1.1-r1.run`
 
 ## 安装前检查
 
@@ -77,7 +95,7 @@ This project packages those needs into a lightweight LuCI plugin named `luci-app
 - Unified access checks for streaming and AI targets
 - DNS utility panel with `Flush DNS`
 - Node auto-switch guidance
-- Subscription conversion helper
+- Built-in `sub-web-modify` frontend with subscription conversion helper
 - LuCI page under `Services -> OpenClash Assistant`
 
 ## Project layout
@@ -89,7 +107,7 @@ This project packages those needs into a lightweight LuCI plugin named `luci-app
 ## Build / Install
 
 - OpenWrt / iStoreOS package source: `luci-app-openclash-assistant/`
-- One-file installer: `dist/openclash-assistant-istoreos-v0.1.0-r1.run`
+- One-file installer: `dist/openclash-assistant-istoreos-v0.1.1-r1.run`
 
 ## Install Checks
 
@@ -117,6 +135,8 @@ This project references or draws inspiration from the following open source proj
   Subscription conversion template references.
 - [Aethersailor/Custom_OpenClash_Rules](https://github.com/Aethersailor/Custom_OpenClash_Rules)
   Additional subscription conversion template references.
+- [youshandefeiyang/sub-web-modify](https://github.com/youshandefeiyang/sub-web-modify)
+  Built-in subscription conversion frontend embedded under LuCI static assets.
 
 These upstream projects remain owned by their respective authors. This repository does not claim ownership of those projects and only reuses ideas, integration knowledge, or template references where applicable.
 

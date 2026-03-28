@@ -73,6 +73,28 @@ have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+ensure_local_subconverter() {
+  if ! have_cmd docker; then
+    say "[提示] 未检测到 Docker，跳过本地订阅转换后端部署。"
+    return 0
+  fi
+
+  section "部署本地订阅转换后端"
+  if docker inspect openclash-assistant-subconverter >/dev/null 2>&1; then
+    docker start openclash-assistant-subconverter >/dev/null 2>&1 || true
+    say "[已满足] 本地 subconverter 容器已存在"
+  else
+    say "[部署] 正在拉取并启动本地 subconverter 后端..."
+    if docker pull tindy2013/subconverter:latest >/dev/null 2>&1 && \
+       docker run -d --restart unless-stopped --name openclash-assistant-subconverter -p 25500:25500 tindy2013/subconverter:latest >/dev/null 2>&1; then
+      say "[完成] 本地 subconverter 后端已启动在 25500 端口"
+    else
+      say "[提示] 本地 subconverter 后端部署失败，订阅转换仍可手动指定其他后端。"
+      return 0
+    fi
+  fi
+}
+
 pkg_installed() {
   opkg status "$1" >/dev/null 2>&1
 }
@@ -141,6 +163,10 @@ restart_services() {
   /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 }
 
+clear_luci_cache() {
+  rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null || true
+}
+
 install_payload() {
   local tmpdir payload_line payload_tar
   check_runtime_env
@@ -165,6 +191,8 @@ install_payload() {
   chmod +x /etc/uci-defaults/90_luci-openclash-assistant 2>/dev/null || true
   /etc/uci-defaults/90_luci-openclash-assistant >/dev/null 2>&1 || true
   uci -q commit openclash-assistant || true
+  ensure_local_subconverter
+  clear_luci_cache
   restart_services
 
   section "安装完成"
@@ -181,7 +209,10 @@ uninstall_payload() {
   rm -f /usr/share/rpcd/acl.d/luci-app-openclash-assistant.json
   rm -f /www/luci-static/resources/view/openclash-assistant/overview.js
   rm -f /www/luci-static/resources/view/openclash-assistant/status.js
+  rm -rf /www/luci-static/openclash-assistant/sub-web-modify
+  docker rm -f openclash-assistant-subconverter >/dev/null 2>&1 || true
   rmdir /www/luci-static/resources/view/openclash-assistant 2>/dev/null || true
+  clear_luci_cache
   restart_services
   section "卸载完成"
   say "[完成] OpenClash Assistant 已移除。"
@@ -228,6 +259,7 @@ What it installs:
   /usr/share/rpcd/acl.d/luci-app-openclash-assistant.json
   /www/luci-static/resources/view/openclash-assistant/overview.js
   /www/luci-static/resources/view/openclash-assistant/status.js
+  /www/luci-static/openclash-assistant/sub-web-modify/
 
 Installer behavior:
   - checks LuCI / rpcd / uhttpd / uci
@@ -242,7 +274,7 @@ Highlights:
 - Unified "访问检查" panel for streaming and AI connectivity checks
 - Default full-target auto checks with local card refresh
 - DNS tool tab with Flush DNS action
-- Auto-switch and subscription conversion pages retained
+- Built-in sub-web-modify frontend for subscription conversion
 
 Target:
 - iStoreOS / OpenWrt systems with LuCI

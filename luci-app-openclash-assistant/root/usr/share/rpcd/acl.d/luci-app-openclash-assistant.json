@@ -9,11 +9,16 @@
         "/usr/libexec/openclash-assistant/diag.sh": [ "read", "exec" ]
       },
       "ubus": {
+        "file": [ "exec", "read", "stat" ],
         "uci": [ "get", "state" ]
       }
     },
     "write": {
+      "file": {
+        "/usr/libexec/openclash-assistant/diag.sh": [ "exec" ]
+      },
       "ubus": {
+        "file": [ "exec" ],
         "uci": [ "set", "add", "commit" ]
       }
     }

@@ -84,12 +84,21 @@ chmod +x /usr/libexec/openclash-assistant/diag.sh 2>/dev/null || true
 chmod +x /etc/uci-defaults/90_luci-openclash-assistant 2>/dev/null || true
 /etc/uci-defaults/90_luci-openclash-assistant >/dev/null 2>&1 || true
 uci -q commit openclash-assistant || true
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null || true
+if command -v docker >/dev/null 2>&1; then
+  echo "[info] deploying local subconverter backend through docker"
+  docker inspect openclash-assistant-subconverter >/dev/null 2>&1 || \
+    (docker pull tindy2013/subconverter:latest >/dev/null 2>&1 && \
+     docker run -d --restart unless-stopped --name openclash-assistant-subconverter -p 25500:25500 tindy2013/subconverter:latest >/dev/null 2>&1) || true
+fi
 /etc/init.d/rpcd restart >/dev/null 2>&1 || true
 /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 exit 0
 """,
     "postrm": b"""#!/bin/sh
 set -eu
+docker rm -f openclash-assistant-subconverter >/dev/null 2>&1 || true
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null || true
 /etc/init.d/rpcd restart >/dev/null 2>&1 || true
 /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 exit 0

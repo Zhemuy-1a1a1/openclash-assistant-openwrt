@@ -1,0 +1,10 @@
+OpenClash Assistant 0.1.1-1
+
+Highlights:
+- Unified "访问检查" panel for streaming and AI connectivity checks
+- Default full-target auto checks with local card refresh
+- DNS tool tab with Flush DNS action
+- Built-in sub-web-modify frontend for subscription conversion
+
+Target:
+- iStoreOS / OpenWrt systems with LuCI
